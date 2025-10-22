@@ -38,7 +38,7 @@ class Detectron2Detector:
         input_shape = self.session.get_inputs()[0].shape
         self.batch_size, self.channels, self.INPUT_H, self.INPUT_W = input_shape
     
-    def _letterbox(self, image: np.ndarray, new_shape=(640, 640),
+    def __letterbox(self, image: np.ndarray, new_shape=(640, 640),
                    color=(114, 114, 114)):
         """Resize image dengan aspect ratio tetap + padding"""
         if image is None:
@@ -57,16 +57,16 @@ class Detectron2Detector:
         padded = cv2.copyMakeBorder(resized, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
         return padded, r, (dw, dh)
 
-    def _preprocess(self, image: np.ndarray):
+    def __preprocess(self, image: np.ndarray):
         """Resize + convert HWC BGR -> NCHW float32"""
-        img, r, dwdh = self._letterbox(image, (self.INPUT_H, self.INPUT_W))
+        img, r, dwdh = self.__letterbox(image, (self.INPUT_H, self.INPUT_W))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)
         img = img.transpose(2, 0, 1)  # HWC -> CHW
         img = np.expand_dims(img, axis=0)  # add batch
         return img, r, dwdh
 
     def __regional_proposal(self,image_arr:np.ndarray):
-        blob, ratio, dwdh = self._preprocess(image_arr)
+        blob, ratio, dwdh = self.__preprocess(image_arr)
         input_name = self.session.get_inputs()[0].name
         output_names = [o.name for o in self.session.get_outputs()]
 
