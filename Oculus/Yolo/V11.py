@@ -26,7 +26,7 @@ class YOLOv11Detector:
         # check label jika ada
         if os.path.exists(label_yaml):
             if label_yaml.endswith('.yaml'):
-                with open(label_yaml,'r') as f:
+                with open(label_yaml,'r',encoding="utf-8") as f:
                     self.classes = yaml.safe_load(f)['names']
             else:
                 raise ValueError("File nya harus berupa yaml ya !")
