@@ -25,7 +25,7 @@ minimal python versi yang di install adaalah
 ```
 2️⃣ Installization Package 
 ```bash
-pip install git+https://github.com/username/Oculus.git
+pip install git+https://github.com/D-I-V-A/Oculus.git
 ```
 
 
