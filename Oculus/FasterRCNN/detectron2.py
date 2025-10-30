@@ -1,15 +1,21 @@
-import onnxruntime as ort
-import numpy as np
-import cv2
 import json
 import os
+
+import cv2
+import numpy as np
+import onnxruntime as ort
 import psutil
 
+
 class Detectron2Detector:
-    def __init__(self,onnx_model_path:str,coco_json_path:str,
-                 conf_thresh:float=0.5,optimization:bool=True):
-        """
-        """
+    def __init__(
+        self,
+        onnx_model_path: str,
+        coco_json_path: str,
+        conf_thresh: float = 0.5,
+        optimization: bool = True,
+    ):
+        """ """
         self.classes = None
         self.conf_thresh = conf_thresh
         self.opts = ort.SessionOptions()
@@ -97,7 +103,9 @@ class Detectron2Detector:
             if file_path.endswith((".jpg", ".jpeg", ".png")):
                 image = cv2.imread(file_path)
                 boxes, scores, class_ids, ratio, dwdh = self.__regional_proposal(image)
-                boxes, scores, class_ids = self.__post_rpn(image, boxes, scores, class_ids, ratio, dwdh)
+                boxes, scores, class_ids = self.__post_rpn(
+                    image, boxes, scores, class_ids, ratio, dwdh
+                )
                 return boxes, scores, class_ids
 
             if file_path.endswith((".mp4", ".avi", ".mov", ".mkv")):
@@ -107,8 +115,12 @@ class Detectron2Detector:
                     ret, frame = cap.read()
                     if not ret:
                         break
-                    boxes, scores, class_ids, ratio, dwdh = self.__regional_proposal(frame)
-                    boxes, scores, class_ids = self.__post_rpn(frame, boxes, scores, class_ids, ratio, dwdh)
+                    boxes, scores, class_ids, ratio, dwdh = self.__regional_proposal(
+                        frame
+                    )
+                    boxes, scores, class_ids = self.__post_rpn(
+                        frame, boxes, scores, class_ids, ratio, dwdh
+                    )
                     results.append((boxes, scores, class_ids))
                 cap.release()
                 return results

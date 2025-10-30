@@ -1,7 +1,8 @@
-from setuptools import setup, find_packages
-from os import path
 import io
 import platform
+from os import path
+
+from setuptools import find_packages, setup
 
 # Baca README.md untuk long description
 with io.open("README.md", encoding="utf-8") as f:
@@ -12,7 +13,9 @@ info = path.abspath(path.dirname(__file__))
 with io.open(path.join(info, "requirements.txt"), encoding="utf-8") as f:
     core_require = f.read().splitlines()
 
-install_require = [x.strip() for x in core_require if x.strip() and not x.startswith("git+")]
+install_require = [
+    x.strip() for x in core_require if x.strip() and not x.startswith("git+")
+]
 
 setup(
     name="Oculus",

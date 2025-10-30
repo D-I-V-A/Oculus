@@ -1,15 +1,23 @@
+import os
+from typing import List, Tuple
+
+import cv2
 import numpy as np
 import onnxruntime as ort
-import yaml
-import cv2
 import psutil
-from typing import List, Tuple
-import os
+import yaml
+
 
 class YOLOv11Detector:
-    def __init__(self, model_path: str, label_yaml: str,
-                 conf_thresh: float = 0.25, iou_thresh: float = 0.7,
-                 optimize: bool = True,apply_letterbox:bool=True):
+    def __init__(
+        self,
+        model_path: str,
+        label_yaml: str,
+        conf_thresh: float = 0.25,
+        iou_thresh: float = 0.7,
+        optimize: bool = True,
+        apply_letterbox: bool = True,
+    ):
         """
         YOLOv11 ONNX Runtime Detector (Vanilla Parser)
         ---------------------------------------------
@@ -25,9 +33,9 @@ class YOLOv11Detector:
         # MODEL_PATH = Path(model_path)
         # check label jika ada
         if os.path.exists(label_yaml):
-            if label_yaml.endswith('.yaml'):
-                with open(label_yaml,'r',encoding="utf-8") as f:
-                    self.classes = yaml.safe_load(f)['names']
+            if label_yaml.endswith(".yaml"):
+                with open(label_yaml, "r", encoding="utf-8") as f:
+                    self.classes = yaml.safe_load(f)["names"]
             else:
                 raise ValueError("File nya harus berupa yaml ya !")
         else:
@@ -36,15 +44,13 @@ class YOLOv11Detector:
         opts = ort.SessionOptions()
         if optimize:
             logical_cores = psutil.cpu_count(logical=True)
-            opts.intra_op_num_threads = max(1,logical_cores//2)
+            opts.intra_op_num_threads = max(1, logical_cores // 2)
             # this for task-level parallelism
             opts.inter_op_num_threads = 1
             opts.add_session_config_entry("session.intra_op.allow_spinning", "0")
-        if os.path.exists(model_path) and model_path.endswith('.onnx'):
+        if os.path.exists(model_path) and model_path.endswith(".onnx"):
             self.session = ort.InferenceSession(
-                str(model_path),
-                sess_options=opts,
-                providers=["CPUExecutionProvider"]
+                str(model_path), sess_options=opts, providers=["CPUExecutionProvider"]
             )
         else:
             raise FileNotFoundError("File ONNX tidak ditemukan")
@@ -53,8 +59,9 @@ class YOLOv11Detector:
         self.INPUT_H = input_shape[2]
         self.INPUT_W = input_shape[3]
 
-    def __letterbox(self, image:np.ndarray, new_shape=(640, 640),
-                   color=(114, 114, 114))->Tuple[np.ndarray,Tuple,Tuple]:
+    def __letterbox(
+        self, image: np.ndarray, new_shape=(640, 640), color=(114, 114, 114)
+    ) -> Tuple[np.ndarray, Tuple, Tuple]:
         shape = image.shape[:2]  # [h, w]
         if isinstance(new_shape, int):
             new_shape = (new_shape, new_shape)
@@ -76,16 +83,20 @@ class YOLOv11Detector:
         return img_padded, ratio, (dw, dh)
 
     def __preprocess(self, image: np.ndarray) -> Tuple[np.ndarray, Tuple, Tuple]:
-        img_letterbox, ratio, dwdh = self.__letterbox(image, (self.INPUT_H, self.INPUT_W))
+        img_letterbox, ratio, dwdh = self.__letterbox(
+            image, (self.INPUT_H, self.INPUT_W)
+        )
         img = cv2.cvtColor(img_letterbox, cv2.COLOR_BGR2RGB)
         img = img.astype(np.float32) / 255.0
         img = np.expand_dims(np.transpose(img, (2, 0, 1)), axis=0)
         return img, ratio, dwdh
 
-    def __nms(self, boxes: np.ndarray, scores: np.ndarray, iou_threshold: float) -> List[int]:
+    def __nms(
+        self, boxes: np.ndarray, scores: np.ndarray, iou_threshold: float
+    ) -> List[int]:
         """
         ==== this section ====
-        Pure NumPy NMS """
+        Pure NumPy NMS"""
         if len(boxes) == 0:
             return []
 
@@ -111,6 +122,7 @@ class YOLOv11Detector:
             order = order[inds + 1]
 
         return keep
+
     # this postprocess section of Yolo
     def __postprocess(self, outputs, orig_h, orig_w, ratio, dwdh):
         preds = outputs[0].transpose(0, 2, 1)[0]
@@ -159,8 +171,12 @@ class YOLOv11Detector:
             if file_path.endswith((".jpg", ".jpeg", ".png")):
                 image = cv2.imread(file_path)
                 blob, ratio, dwdh = self.__preprocess(image)
-                outputs = self.session.run(None, {self.session.get_inputs()[0].name: blob})
-                boxes, scores, class_ids = self.__postprocess(outputs, image.shape[0], image.shape[1], ratio, dwdh)
+                outputs = self.session.run(
+                    None, {self.session.get_inputs()[0].name: blob}
+                )
+                boxes, scores, class_ids = self.__postprocess(
+                    outputs, image.shape[0], image.shape[1], ratio, dwdh
+                )
                 return boxes, scores, class_ids
             # jika ini berupa video
             elif file_path.endswith((".mp4", ".avi", ".mov", ".mkv")):
@@ -168,11 +184,13 @@ class YOLOv11Detector:
                 if not cap.isOpened():
                     raise ValueError("Gagal membuka file video")
                 while True:
-                    ret,frame = cap.read()
-                    if not ret :
+                    ret, frame = cap.read()
+                    if not ret:
                         break
                     blob, ratio, dwdh = self.__preprocess(frame)
-                    outputs = self.session.run(None, {self.session.get_inputs()[0].name: blob})
+                    outputs = self.session.run(
+                        None, {self.session.get_inputs()[0].name: blob}
+                    )
                     boxes, scores, class_ids = self.__postprocess(
                         outputs, frame.shape[0], frame.shape[1], ratio, dwdh
                     )
@@ -181,4 +199,3 @@ class YOLOv11Detector:
                 raise ValueError("Format File tidak dapat dikenali")
         else:
             raise FileNotFoundError("File path tidak dapat di temukan")
-        

@@ -1,15 +1,15 @@
 # OCULUS - Object Detection Library
 
 
-**Oculus** adalah library Python untuk melakukan **deteksi objek** menggunakan model berbasis **ONNX** dan **ONNX Runtime**.  
+**Oculus** adalah library Python untuk melakukan **deteksi objek** menggunakan model berbasis **ONNX** dan **ONNX Runtime**.
 Tujuan utama dari pengembangan Oculus adalah menyediakan solusi **ringan**, **cepat**, dan **portable** yang dapat berjalan secara optimal bahkan pada **perangkat CPU-only**, tanpa ketergantungan langsung pada framework deep learning seperti PyTorch atau TensorFlow.
 
 ## Fitur Utama
-- 🔹 Mendukung berbagai model deteksi objek dalam format **ONNX**  
-- 🔹 Inferensi cepat menggunakan **ONNX Runtime**  
-- 🔹 Tidak memerlukan GPU — **CPU-only friendly**  
-- 🔹 Implementasi preprocessing & postprocessing otomatis (resize, NMS, scaling)  
-- 🔹 Hasil deteksi dapat divisualisasikan langsung dengan OpenCV  
+- 🔹 Mendukung berbagai model deteksi objek dalam format **ONNX**
+- 🔹 Inferensi cepat menggunakan **ONNX Runtime**
+- 🔹 Tidak memerlukan GPU — **CPU-only friendly**
+- 🔹 Implementasi preprocessing & postprocessing otomatis (resize, NMS, scaling)
+- 🔹 Hasil deteksi dapat divisualisasikan langsung dengan OpenCV
 
 ## Instalisasi and Requirment Technology
 
@@ -23,7 +23,7 @@ minimal python versi yang di install adaalah
 ```sh
 > python3.8.0
 ```
-2️⃣ Installization Package 
+2️⃣ Installization Package
 ```bash
 pip install git+https://github.com/D-I-V-A/Oculus.git
 ```
