@@ -8,6 +8,10 @@ detector = YOLOv11Detector(
     label_yaml="assets\label\coco8.yaml",
 )
 video_processor = YOLOVideoProcess(detector)
+<<<<<<< HEAD
 # video_processor.process_video(video_path, output_path)
 video_processor.process_video(video_path, output_path, 
                        use_threading=True)  
+=======
+video_processor.process_webcam()  
+>>>>>>> 8db80b8 (feat:adding feature video processing and realtime-webcam)
