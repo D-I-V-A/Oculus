@@ -41,8 +41,9 @@ class Detectron2Detector:
         else:
             raise FileNotFoundError("File ONNX tidak ditemukan")
         
-        input_shape = self.session.get_inputs()[0].shape
-        self.batch_size, self.channels, self.INPUT_H, self.INPUT_W = input_shape
+        session_inputs = self.session.get_inputs()[0].shape
+        self.batch_size, self.channels, self.input_height, self.input_weight = session_inputs
+        
     
     def __letterbox(self, image: np.ndarray, new_shape=(640, 640),
                    color=(114, 114, 114)):
@@ -50,7 +51,10 @@ class Detectron2Detector:
         if image is None:
             raise ValueError("Image is None, check the file path")
         
-        shape = image.shape[:2]  # H, W
+        shape = image.shape[:2]  # [h, w]
+        if isinstance(new_shape, int):
+            new_shape = (new_shape, new_shape)
+        new_shape = (int(new_shape[0]),int(new_shape[1]))
         r = min(new_shape[0]/shape[0], new_shape[1]/shape[1])
         new_unpad = int(round(shape[1]*r)), int(round(shape[0]*r))
         dw, dh = new_shape[1]-new_unpad[0], new_shape[0]-new_unpad[1]
@@ -65,7 +69,8 @@ class Detectron2Detector:
 
     def __preprocess(self, image: np.ndarray):
         """Resize + convert HWC BGR -> NCHW float32"""
-        img, r, dwdh = self.__letterbox(image, (self.INPUT_H, self.INPUT_W))
+        img, r, dwdh = self.__letterbox(image, (int(str(self.input_height)),
+                                                int(str(self.input_weight))))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)
         img = img.transpose(2, 0, 1)  # HWC -> CHW
         img = np.expand_dims(img, axis=0)  # add batch
@@ -98,6 +103,7 @@ class Detectron2Detector:
         boxes = boxes.astype(int).tolist()
 
         return boxes, scores.tolist(), class_ids.tolist()
+
     def detect(self,file_path:str):
         if os.path.exists(file_path):
             if file_path.endswith((".jpg", ".jpeg", ".png")):
