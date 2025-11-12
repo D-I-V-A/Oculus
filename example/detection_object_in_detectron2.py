@@ -1,7 +1,7 @@
 from Oculus.FasterRCNN.detectron2 import Detectron2Detector
 
 detector = Detectron2Detector(
-    onnx_model_path="assets\model\detectron2_fasterrcnn.onnx",
+    onnx_model_path="assets\models\detectron2_fasterrcnn.onnx",
     coco_json_path="assets\labels\coco.json",
     conf_thresh=0.5,
 )

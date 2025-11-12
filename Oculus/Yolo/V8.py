@@ -6,9 +6,9 @@ import time
 import psutil
 import yaml
 
+from typing import Tuple
 
 class V8Detector:
-
     def __init__(self,onnx_model_path:str,class_path:str,
                  conf_thres:float=.7,
                  iou_thres:float=0.25,
@@ -44,8 +44,8 @@ class V8Detector:
         self.INPUT_H = input_shape[2]
         self.INPUT_W = input_shape[3]
 
-    def __letterbox(self, img: np.ndarray, new_shape=(480, 480)):
-        color = (114,114,114)
+    def __letterbox(self, img: np.ndarray, new_shape=(640, 640)):
+        color = (114, 114, 114)
         shape = img.shape[:2]
         r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
         new_unpad = (int(round(shape[1] * r)), int(round(shape[0] * r)))
@@ -53,7 +53,7 @@ class V8Detector:
         dw /= 2
         dh /= 2
 
-        img_resized = cv2.resize(img,new_unpad,interpolation=cv2.INTER_LINEAR)
+        img_resized = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
         top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
         left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
         img_padded = cv2.copyMakeBorder(img_resized, top, bottom, left, right,
@@ -68,92 +68,111 @@ class V8Detector:
         return outputs
     
 
-    def __preprocess(self, image: np.ndarray):
+    def __preprocess(self, image: np.ndarray) -> Tuple:
         img_letterbox, ratio, dwdh = self.__letterbox(
             image, (self.INPUT_H, self.INPUT_W)
         )
         img = cv2.cvtColor(img_letterbox, cv2.COLOR_BGR2RGB)
-        img = img.astype(np.float32) / 255.0
-        img = np.expand_dims(np.transpose(img, (2, 0, 1)), axis=0)
+        img = img.transpose(2, 0, 1)
+        img = np.expand_dims(img, 0).astype(np.float32) / 255.0
         return img, ratio, dwdh
     
+    def __compute_iou(self, box, boxes):
+        xmin = np.maximum(box[0], boxes[:, 0])
+        ymin = np.maximum(box[1], boxes[:, 1])
+        xmax = np.minimum(box[2], boxes[:, 2])
+        ymax = np.minimum(box[3], boxes[:, 3])
+
+        intersection_area = np.maximum(0, xmax - xmin) * np.maximum(0, ymax - ymin)
+        box_area = (box[2] - box[0]) * (box[3] - box[1])
+        boxes_area = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
+        union_area = box_area + boxes_area - intersection_area
+        return intersection_area / np.maximum(union_area, 1e-6)
+
+
     def __nms(self, boxes, scores, iou_thres):
-        x1, y1, x2, y2 = boxes.T
-        areas = (x2 - x1) * (y2 - y1)
-        order = scores.argsort()[::-1]
-        keep = []
-        while order.size > 0:
-            i = order[0]
-            keep.append(i)
-            xx1 = np.maximum(x1[i], x1[order[1:]])
-            yy1 = np.maximum(y1[i], y1[order[1:]])
-            xx2 = np.minimum(x2[i], x2[order[1:]])
-            yy2 = np.minimum(y2[i], y2[order[1:]])
-            w = np.maximum(0.0, xx2 - xx1)
-            h = np.maximum(0.0, yy2 - yy1)
-            inter = w * h
-            iou = inter / (areas[i] + areas[order[1:]] - inter)
-            inds = np.where(iou <= iou_thres)[0]
-            order = order[inds + 1]
-        return keep
+        # sorted list of prediction score
+        sorted_indices = np.argsort(scores)[::-1]
+        keep_boxes = []
+        while sorted_indices.size > 0:
+            curr = sorted_indices[0]
+            keep_boxes.append(curr)
+            if sorted_indices.size == 1:
+                break
+            ious = self.__compute_iou(boxes[curr, :], boxes[sorted_indices[1:], :])
+            keep_indices = np.where(ious < iou_thres)[0]
+            sorted_indices = sorted_indices[keep_indices + 1]
+        return keep_boxes
     
+    def __xywh2xyxy(self, x):
+        y = np.copy(x)
+        y[..., 0] = x[..., 0] - x[..., 2] / 2
+        y[..., 1] = x[..., 1] - x[..., 3] / 2
+        y[..., 2] = x[..., 0] + x[..., 2] / 2
+        y[..., 3] = x[..., 1] + x[..., 3] / 2
+        return y
+        
     def __postprocess(self, outputs, orig_h, orig_w, ratio, dwdh):
-            preds = outputs[0]
-            if preds.shape[1] > preds.shape[2]:
+        preds = outputs[0]
+
+        # --- Handle various ONNX output shapes ---
+        if preds.ndim == 3:
+            # (1,84,6300) or (1,84,8400)
+            if preds.shape[1] == 84:
                 preds = preds.transpose(0, 2, 1)
             preds = preds[0]
+        elif preds.ndim == 2 and preds.shape[0] == 84:
+            preds = preds.transpose(1, 0)
 
-            boxes = preds[:, :4]
-            scores_all = preds[:, 4:]
-            scores = np.max(scores_all, axis=1)
-            class_ids = np.argmax(scores_all, axis=1)
+        print("DEBUG shape:", preds.shape)
 
-            mask = scores > self.conf_threshold
-            boxes, scores, class_ids = boxes[mask], scores[mask], class_ids[mask]
+        boxes = preds[:, :4]
+        scores_all = preds[:, 4:]
+        scores = np.max(scores_all, axis=1)
+        class_ids = np.argmax(scores_all, axis=1)
 
-            if len(boxes) == 0:
-                return [], [], []
+        mask = scores > self.conf_threshold
+        boxes, scores, class_ids = boxes[mask], scores[mask], class_ids[mask]
 
-            boxes_xyxy = np.copy(boxes)
-            boxes_xyxy[:, 0] = boxes[:, 0] - boxes[:, 2] / 2
-            boxes_xyxy[:, 1] = boxes[:, 1] - boxes[:, 3] / 2
-            boxes_xyxy[:, 2] = boxes[:, 0] + boxes[:, 2] / 2
-            boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2
+        if len(boxes) == 0:
+            return [], [], []
 
-            boxes_xyxy[:, [0, 2]] -= dwdh[0]
-            boxes_xyxy[:, [1, 3]] -= dwdh[1]
-            boxes_xyxy[:, :4] /= ratio[0]
-            boxes_xyxy = np.clip(boxes_xyxy, 0, max(orig_h, orig_w))
+        boxes = self.__xywh2xyxy(boxes)
+        boxes[:, [0, 2]] -= dwdh[0]
+        boxes[:, [1, 3]] -= dwdh[1]
+        boxes[:, :4] /= ratio[0]
 
-            keep = self.__nms(boxes_xyxy, scores, self.iou_threshold)
-            boxes_xyxy = boxes_xyxy[keep].astype(int)
-            scores = scores[keep]
-            class_ids = class_ids[keep]
+        boxes[:, 0] = np.clip(boxes[:, 0], 0, orig_w)
+        boxes[:, 1] = np.clip(boxes[:, 1], 0, orig_h)
+        boxes[:, 2] = np.clip(boxes[:, 2], 0, orig_w)
+        boxes[:, 3] = np.clip(boxes[:, 3], 0, orig_h)
 
-            return boxes_xyxy, scores, class_ids
+        keep = self.__nms(boxes, scores, self.iou_threshold)
+        boxes, scores, class_ids = boxes[keep].astype(int), scores[keep], class_ids[keep]
+
+        return boxes, scores, class_ids
     
     def detect(self, img_input):
         # Bisa menerima path string atau ndarray langsung
         if isinstance(img_input, str):
             if not os.path.exists(img_input):
                 raise FileNotFoundError(f"File gambar tidak ditemukan: {img_input}")
-            image = cv2.imread(img_input)
-        elif isinstance(img_input, np.ndarray):
-            image = img_input
+            if img_input.endswith((".jpg", ".jpeg", ".png")):
+                image = cv2.imread(img_input)
+                orig_h, orig_w = image.shape[:2]
+                img, ratio, dwdh = self.__preprocess(image)
+                outputs = self.__inference(img)
+                boxes, scores, class_ids = self.__postprocess(outputs, orig_h, orig_w, ratio, dwdh)
+                return boxes, scores, class_ids
+            elif img_input.endswith((".mp4", ".avi", ".mov", ".mkv")):
+                # coming soon
+                pass
         else:
-            raise TypeError("Input harus berupa path string atau numpy.ndarray")
-        
-        if image is None:
-            raise ValueError("Gagal membaca gambar")
-
-        orig_h, orig_w = image.shape[:2]
-        img, ratio, dwdh = self.__preprocess(image)
-        outputs = self.__inference(img)
-        boxes, scores, class_ids = self.__postprocess(outputs, orig_h, orig_w, ratio, dwdh)
-        return boxes, scores, class_ids
-
+            raise ValueError("parameter harus bertipe data str")
 
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
     detector = V8Detector(
         "assets/models/yolov8m.onnx",
         "assets/labels/coco8.yaml",
@@ -169,6 +188,6 @@ if __name__ == "__main__":
         cv2.rectangle(image, box[:2], box[2:], (0, 255, 0), 2)
         cv2.putText(image, label, (box[0], box[1]-5),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-        cv2.imshow("Detection", image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    plt.axis("off")
+    plt.show()
