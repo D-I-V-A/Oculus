@@ -4,8 +4,8 @@ from Oculus.utils import YOLOVideoProcess
 video_path = "assets/videos/example.mp4"
 output_path = "output_video.mp4"
 detector = YOLOv11Detector(
-    "assets\model\yolo11s.onnx",
-    label_yaml="assets\label\coco8.yaml",
+    "assets\models\yolo11s.onnx",
+    label_yaml="assets\labels\coco8.yaml",
 )
 video_processor = YOLOVideoProcess(detector)
 video_processor.process_webcam()  
