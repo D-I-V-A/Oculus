@@ -13,6 +13,7 @@ class V8Detector:
                  conf_thres:float=.7,
                  iou_thres:float=0.25,
                  optimize:bool=False):
+        
         self.conf_threshold = conf_thres
         self.iou_threshold = iou_thres
 
@@ -171,7 +172,7 @@ class V8Detector:
             raise ValueError("parameter harus bertipe data str")
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
+    # import matplotlib.pyplot as plt
 
     detector = V8Detector(
         "assets/models/yolov8m.onnx",
@@ -188,6 +189,6 @@ if __name__ == "__main__":
         cv2.rectangle(image, box[:2], box[2:], (0, 255, 0), 2)
         cv2.putText(image, label, (box[0], box[1]-5),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    plt.axis("off")
-    plt.show()
+    # plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    # plt.axis("off")
+    # plt.show()
